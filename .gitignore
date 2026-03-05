@@ -1,1 +1,24 @@
-.vercel
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+
+# Environment variables (never commit real secrets)
+.env
+.env.local
+
+# Vercel
+.vercel/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
