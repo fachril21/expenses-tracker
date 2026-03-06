@@ -23,9 +23,21 @@ const DATA_START_ROW = 3;
 
 // ---- Auth ----
 
+// Clean the private key: handle various env var formats
+function cleanPrivateKey(rawKey: string): string {
+  let key = rawKey;
+  // Strip surrounding quotes if present
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1);
+  }
+  // Replace literal \n strings with actual newlines
+  key = key.replace(/\\n/g, "\n");
+  return key;
+}
+
 const auth = new JWT({
   email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  key: GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  key: cleanPrivateKey(GOOGLE_PRIVATE_KEY),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
