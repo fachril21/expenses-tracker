@@ -1,4 +1,3 @@
-import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import type { ExpenseData } from "./gemini";
 
@@ -39,8 +38,6 @@ const serviceAccountAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-const doc = new GoogleSpreadsheet(GOOGLE_SHEET_ID, serviceAccountAuth);
-
 // ---- Public API ----
 
 /**
@@ -49,6 +46,10 @@ const doc = new GoogleSpreadsheet(GOOGLE_SHEET_ID, serviceAccountAuth);
  * and writes data to columns F, G, H, I.
  */
 export async function appendExpenseRecord(data: ExpenseData): Promise<void> {
+  // Dynamic import for ESM-only google-spreadsheet package
+  const { GoogleSpreadsheet } = await import("google-spreadsheet");
+
+  const doc = new GoogleSpreadsheet(GOOGLE_SHEET_ID!, serviceAccountAuth);
   await doc.loadInfo();
 
   const sheet = doc.sheetsById[TARGET_SHEET_GID];
@@ -59,8 +60,7 @@ export async function appendExpenseRecord(data: ExpenseData): Promise<void> {
     );
   }
 
-  // Load cells in the range F1:I100 to find the next empty row
-  // Expand range if needed for larger datasets
+  // Load cells in the range F1:I200 to find the next empty row
   await sheet.loadCells("F1:I200");
 
   // Find the next empty row starting from DATA_START_ROW (row 3)
