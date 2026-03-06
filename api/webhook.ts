@@ -85,10 +85,11 @@ bot.on("photo", async (ctx) => {
         `🏪 Deskripsi: ${expenseData.subcategory}\n` +
         `💰 Total: ${formatRupiah(expenseData.total_harga)}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing photo:", error);
+    const errMsg = error?.message || String(error);
     await ctx.reply(
-      "❌ Gagal memproses struk. Silakan pastikan foto jelas dan coba lagi."
+      `❌ Gagal memproses struk.\n\nError: ${errMsg}`
     );
   }
 });
@@ -119,11 +120,11 @@ bot.on("text", async (ctx) => {
         `🏪 Deskripsi: ${expenseData.subcategory}\n` +
         `💰 Total: ${formatRupiah(expenseData.total_harga)}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing text:", error);
+    const errMsg = error?.message || String(error);
     await ctx.reply(
-      "❌ Gagal memproses pesan. Silakan coba lagi dengan format yang lebih jelas.\n\n" +
-        "Contoh: 'Makan siang di Warteg Bahari 25000'"
+      `❌ Gagal memproses pesan.\n\nError: ${errMsg}`
     );
   }
 });
