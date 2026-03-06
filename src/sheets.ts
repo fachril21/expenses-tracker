@@ -15,77 +15,82 @@ if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_SHEET_ID) {
 
 // ---- Sheet Configuration ----
 
-// GID of the specific worksheet to append rows to
-const TARGET_SHEET_GID = 1154511153;
+// Name of the target sheet tab (must match the sheet tab name in your spreadsheet)
+const TARGET_SHEET_NAME = "List Pengeluaran";
 
 // Data starts at row 3 (row 1 = title, row 2 = headers)
 const DATA_START_ROW = 3;
 
-// Column mapping (0-indexed): F=5, G=6, H=7, I=8
-const COL = {
-  SOURCE: 5,    // Column F
-  CATEGORY: 6,  // Column G
-  SUBCATEGORY: 7, // Column H
-  IDR: 8,       // Column I
-};
+// ---- Auth ----
 
-// ---- Initialization ----
-
-const serviceAccountAuth = new JWT({
+const auth = new JWT({
   email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  // Handle escaped newline characters from env vars
   key: GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
+// ---- Helpers ----
+
+const SHEETS_API_BASE = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}`;
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await auth.getAccessToken();
+  return {
+    Authorization: `Bearer ${token.token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Find the next empty row by reading column F starting from row 3.
+ */
+async function findNextEmptyRow(): Promise<number> {
+  const headers = await getAuthHeaders();
+  const range = `'${TARGET_SHEET_NAME}'!F${DATA_START_ROW}:F200`;
+  const url = `${SHEETS_API_BASE}/values/${encodeURIComponent(range)}`;
+
+  const response = await fetch(url, { headers });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gagal membaca sheet: ${response.status} ${errorText}`);
+  }
+
+  const data = (await response.json()) as { values?: string[][] };
+  const values = data.values || [];
+
+  // The next empty row = DATA_START_ROW + number of filled rows
+  return DATA_START_ROW + values.length;
+}
+
 // ---- Public API ----
 
 /**
- * Appends a new expense record to the target worksheet.
- * Finds the next empty row in column F (starting from row 3)
- * and writes data to columns F, G, H, I.
+ * Appends a new expense record to columns F, G, H, I
+ * at the next empty row.
  */
 export async function appendExpenseRecord(data: ExpenseData): Promise<void> {
-  // Dynamic import for ESM-only google-spreadsheet package
-  const { GoogleSpreadsheet } = await import("google-spreadsheet");
+  const nextRow = await findNextEmptyRow();
+  const headers = await getAuthHeaders();
 
-  const doc = new GoogleSpreadsheet(GOOGLE_SHEET_ID!, serviceAccountAuth);
-  await doc.loadInfo();
+  // Write to F{row}:I{row}
+  const range = `'${TARGET_SHEET_NAME}'!F${nextRow}:I${nextRow}`;
+  const url = `${SHEETS_API_BASE}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
-  const sheet = doc.sheetsById[TARGET_SHEET_GID];
+  const body = {
+    range,
+    majorDimension: "ROWS",
+    values: [[data.source, data.category, data.subcategory, data.total_harga]],
+  };
 
-  if (!sheet) {
-    throw new Error(
-      `Worksheet dengan GID ${TARGET_SHEET_GID} tidak ditemukan. Pastikan sheet tersedia di spreadsheet.`
-    );
+  const response = await fetch(url, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gagal menulis ke sheet: ${response.status} ${errorText}`);
   }
-
-  // Load cells in the range F1:I200 to find the next empty row
-  await sheet.loadCells("F1:I200");
-
-  // Find the next empty row starting from DATA_START_ROW (row 3)
-  let nextRow = DATA_START_ROW - 1; // 0-indexed for getCell (row 3 = index 2)
-  while (nextRow < 200) {
-    const cell = sheet.getCell(nextRow, COL.SOURCE);
-    if (!cell.value) break;
-    nextRow++;
-  }
-
-  if (nextRow >= 200) {
-    throw new Error("Sheet sudah penuh (200 baris). Silakan perluas sheet.");
-  }
-
-  // Write data to the specific cells
-  const sourceCell = sheet.getCell(nextRow, COL.SOURCE);
-  const categoryCell = sheet.getCell(nextRow, COL.CATEGORY);
-  const subcategoryCell = sheet.getCell(nextRow, COL.SUBCATEGORY);
-  const idrCell = sheet.getCell(nextRow, COL.IDR);
-
-  sourceCell.value = data.source;
-  categoryCell.value = data.category;
-  subcategoryCell.value = data.subcategory;
-  idrCell.numberValue = data.total_harga;
-
-  // Save all modified cells in one batch
-  await sheet.saveUpdatedCells();
 }
