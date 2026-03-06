@@ -16,7 +16,7 @@ if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_SHEET_ID) {
 // ---- Sheet Configuration ----
 
 // Name of the target sheet tab (must match the sheet tab name in your spreadsheet)
-const TARGET_SHEET_NAME = "Test";
+const TARGET_SHEET_NAME = "BUDGETING MARET";
 
 // Data starts at row 3 (row 1 = title, row 2 = headers)
 const DATA_START_ROW = 3;
