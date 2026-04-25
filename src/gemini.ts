@@ -14,8 +14,11 @@ export interface ExpenseData {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
+  console.error("CRITICAL: GEMINI_API_KEY is not set!");
   throw new Error("GEMINI_API_KEY is not set in environment variables.");
 }
+
+console.log("GEMINI_API_KEY is set. Prefix:", GEMINI_API_KEY.substring(0, 7) + "...");
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 

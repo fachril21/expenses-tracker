@@ -72,10 +72,14 @@ bot.on("photo", async (ctx) => {
     const imageBuffer = Buffer.from(arrayBuffer);
 
     // Extract expense data using Gemini
+    console.log("Calling Gemini with image...");
     const expenseData = await extractExpenseFromImage(imageBuffer, "image/jpeg");
+    console.log("Gemini result:", JSON.stringify(expenseData));
 
     // Append to Google Sheets
+    console.log("Appending to Google Sheets...");
     await appendExpenseRecord(expenseData);
+    console.log("Successfully appended to Sheets.");
 
     // Send success message
     await ctx.reply(
@@ -107,10 +111,14 @@ bot.on("text", async (ctx) => {
     await ctx.reply("⏳ Sedang memproses...");
 
     // Extract expense data using Gemini
+    console.log("Calling Gemini with text:", userText);
     const expenseData = await extractExpenseFromText(userText);
+    console.log("Gemini result:", JSON.stringify(expenseData));
 
     // Append to Google Sheets
+    console.log("Appending to Google Sheets...");
     await appendExpenseRecord(expenseData);
+    console.log("Successfully appended to Sheets.");
 
     // Send success message
     await ctx.reply(
@@ -139,8 +147,11 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  console.log(`Received ${req.method} request to webhook`);
+
   if (req.method === "POST") {
     try {
+      console.log("Update body:", JSON.stringify(req.body));
       await bot.handleUpdate(req.body);
       res.status(200).json({ ok: true });
     } catch (error) {
