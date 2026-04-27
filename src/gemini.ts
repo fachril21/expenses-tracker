@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ---- Types ----
 
@@ -11,20 +11,56 @@ export interface ExpenseData {
 
 // ---- Initialization ----
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+/** 
+ * GOOGLE GEMINI (Commented out as requested)
+ * 
+ * const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+ * if (!GEMINI_API_KEY) {
+ *   console.error("CRITICAL: GEMINI_API_KEY is not set!");
+ *   throw new Error("GEMINI_API_KEY is not set in environment variables.");
+ * }
+ * const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+ * const model = genAI.getGenerativeModel({
+ *   model: "gemini-3.1-flash-lite-preview",
+ * });
+ */
 
-if (!GEMINI_API_KEY) {
-  console.error("CRITICAL: GEMINI_API_KEY is not set!");
-  throw new Error("GEMINI_API_KEY is not set in environment variables.");
+// ---- OpenRouter Initialization ----
+
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const AI_MODEL = "google/gemini-flash-1.5:free";
+
+if (!OPENROUTER_API_KEY) {
+  console.error("CRITICAL: OPENROUTER_API_KEY is not set!");
+  throw new Error("OPENROUTER_API_KEY is not set in environment variables.");
 }
 
-console.log("GEMINI_API_KEY is set. Prefix:", GEMINI_API_KEY.substring(0, 7) + "...");
+/**
+ * Helper to call OpenRouter API
+ */
+async function callOpenRouter(messages: any[]) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+      "HTTP-Referer": "https://github.com/fachril21/expenses-tracker", // Optional, for OpenRouter rankings
+      "X-Title": "Expenses Tracker Bot", // Optional
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      messages: messages,
+    }),
+  });
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`OpenRouter API error: ${errorData.error?.message || response.statusText}`);
+  }
 
-const model = genAI.getGenerativeModel({
-  model: "gemini-3.1-flash-lite-preview",
-});
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
 
 // ---- System Prompt ----
 
@@ -54,45 +90,51 @@ ATURAN KETAT:
 
 7. JANGAN menambahkan penjelasan, komentar, atau teks apapun selain objek JSON.`;
 
-// ---- Helper: Parse Gemini Response ----
+// ---- Helper: Parse AI Response ----
 
-function parseGeminiResponse(responseText: string): ExpenseData {
+function parseAIResponse(responseText: string): ExpenseData {
   // Strip any accidental markdown code fencing
   let cleaned = responseText.trim();
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   }
 
-  const parsed = JSON.parse(cleaned);
+  try {
+    const parsed = JSON.parse(cleaned);
 
-  // Validate required fields
-  if (
-    typeof parsed.source !== "string" ||
-    typeof parsed.category !== "string" ||
-    typeof parsed.subcategory !== "string" ||
-    typeof parsed.total_harga !== "number"
-  ) {
-    throw new Error("Respons Gemini tidak sesuai format yang diharapkan.");
+    // Validate required fields
+    if (
+      typeof parsed.source !== "string" ||
+      typeof parsed.category !== "string" ||
+      typeof parsed.subcategory !== "string" ||
+      typeof parsed.total_harga !== "number"
+    ) {
+      throw new Error("Respons AI tidak sesuai format yang diharapkan.");
+    }
+
+    // Validate source value
+    if (parsed.source !== "JAGO" && parsed.source !== "Cash") {
+      parsed.source = "Cash"; // Default fallback
+    }
+
+    // Validate category value
+    const validCategories = ["Kebutuhan Rumah", "Kebutuhan Makan", "Transport", "Pulsa", "Jajan"];
+    if (!validCategories.includes(parsed.category)) {
+      parsed.category = "Jajan"; // Default fallback
+    }
+
+    return parsed as ExpenseData;
+  } catch (e) {
+    console.error("Failed to parse AI response:", responseText);
+    throw new Error("Gagal mengurai respons dari AI. Pastikan formatnya JSON.");
   }
-
-  // Validate source value
-  if (parsed.source !== "JAGO" && parsed.source !== "Cash") {
-    parsed.source = "Cash"; // Default fallback
-  }
-
-  // Validate category value
-  const validCategories = ["Kebutuhan Rumah", "Kebutuhan Makan", "Transport", "Pulsa", "Jajan"];
-  if (!validCategories.includes(parsed.category)) {
-    parsed.category = "Jajan"; // Default fallback
-  }
-
-  return parsed as ExpenseData;
 }
 
 // ---- Public API ----
 
 /**
  * Extract expense data from a receipt image.
+ * NOTE: Some free models on OpenRouter may not support vision.
  */
 export async function extractExpenseFromImage(
   imageBuffer: Buffer,
@@ -100,26 +142,30 @@ export async function extractExpenseFromImage(
 ): Promise<ExpenseData> {
   const base64Image = imageBuffer.toString("base64");
 
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: SYSTEM_PROMPT },
-          {
-            inlineData: {
-              mimeType,
-              data: base64Image,
-            },
+  // We send the system prompt as the first message to guide the model
+  const responseText = await callOpenRouter([
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Ekstrak data pengeluaran dari struk di atas.",
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${mimeType};base64,${base64Image}`,
           },
-          { text: "Ekstrak data pengeluaran dari struk di atas." },
-        ],
-      },
-    ],
-  });
+        },
+      ],
+    },
+  ]);
 
-  const responseText = result.response.text();
-  return parseGeminiResponse(responseText);
+  return parseAIResponse(responseText);
 }
 
 /**
@@ -128,20 +174,16 @@ export async function extractExpenseFromImage(
 export async function extractExpenseFromText(
   text: string
 ): Promise<ExpenseData> {
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: SYSTEM_PROMPT },
-          {
-            text: `Ekstrak data pengeluaran dari teks berikut:\n\n"${text}"`,
-          },
-        ],
-      },
-    ],
-  });
+  const responseText = await callOpenRouter([
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+    {
+      role: "user",
+      content: `Ekstrak data pengeluaran dari teks berikut:\n\n"${text}"`,
+    },
+  ]);
 
-  const responseText = result.response.text();
-  return parseGeminiResponse(responseText);
+  return parseAIResponse(responseText);
 }

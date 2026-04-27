@@ -71,10 +71,10 @@ bot.on("photo", async (ctx) => {
     const arrayBuffer = await response.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Extract expense data using Gemini
-    console.log("Calling Gemini with image...");
+    // Extract expense data using AI
+    console.log("Calling AI with image...");
     const expenseData = await extractExpenseFromImage(imageBuffer, "image/jpeg");
-    console.log("Gemini result:", JSON.stringify(expenseData));
+    console.log("AI result:", JSON.stringify(expenseData));
 
     // Append to Google Sheets
     console.log("Appending to Google Sheets...");
@@ -110,10 +110,10 @@ bot.on("text", async (ctx) => {
     // Send processing indicator
     await ctx.reply("⏳ Sedang memproses...");
 
-    // Extract expense data using Gemini
-    console.log("Calling Gemini with text:", userText);
+    // Extract expense data using AI
+    console.log("Calling AI with text:", userText);
     const expenseData = await extractExpenseFromText(userText);
-    console.log("Gemini result:", JSON.stringify(expenseData));
+    console.log("AI result:", JSON.stringify(expenseData));
 
     // Append to Google Sheets
     console.log("Appending to Google Sheets...");
